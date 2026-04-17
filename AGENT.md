@@ -14,4 +14,4 @@ Ogni volta che scrivi o modifiche main.ipynb, assicurati che funzioni in Colab
 
 Dovremmo fare anche un report in Colab, dove useremo risultati e plot ricavati da main.ipynb, assicurati che ogni plot e immagine del notebook venga salvata in /report/images e che i due contenuti siano coerenti.
 
-Inoltre il report dovrà rispettare le seguenti regole
+Inoltre il report dovrà rispettare le seguenti regole:
