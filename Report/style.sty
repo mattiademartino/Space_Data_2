@@ -1,0 +1,113 @@
+% style.sty
+
+
+\PassOptionsToPackage{colorlinks=true, linkcolor=black, urlcolor=customblue, citecolor=customblue}{hyperref}
+
+
+%=====================
+% Document Setup
+%=====================
+
+\usepackage[utf8]{inputenc}
+\usepackage{geometry}
+\geometry{
+    a4paper,
+    total={170mm,257mm},
+    left=20mm,
+    top=20mm,
+}
+\usepackage{newunicodechar}
+\newunicodechar{ʻ}{\textquotesingle}
+
+%=====================
+% Font Settings
+%=====================
+
+\usepackage{newtxtext}
+\usepackage{sectsty}
+\newcommand{\titlefont}{\fontfamily{cmbr}\selectfont}
+\allsectionsfont{\titlefont}
+
+%=====================
+% Essential Packages
+%=====================
+\usepackage[mathlines]{lineno} % 'mathlines' is optional, but useful if you have equations
+\usepackage{graphicx}
+\usepackage{titling}
+\usepackage{adjustbox}
+\usepackage{caption}
+\usepackage{booktabs}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{subcaption}
+\usepackage{enumitem}
+\usepackage{fancyhdr}
+\usepackage{sectsty}
+\usepackage{tabularx}
+\usepackage{url}
+\usepackage[numbers]{natbib}
+\usepackage{bookmark}
+\usepackage{lipsum}
+
+%=====================
+% Hyperlinks and Colors
+%=====================
+
+\definecolor{customblue}{RGB}{33,92,175} % -> for other colours use ETH colour https://ethz.ch/staffnet/en/service/communication/corporate-design/colours.html 
+\usepackage{hyperref}
+
+%=====================
+% Custom Commands and Definitions
+%=====================
+
+\newcommand{\tsup}[1]{\textsuperscript{#1}}
+\newcommand{\tsub}[1]{\textsubscript{#1}}
+
+%=====================
+% Header and Footer Styling
+%=====================
+
+\fancypagestyle{plain}{%
+    \fancyhf{}
+    \fancyhead[L]{\small{Space Data}}
+    \fancyhead[R]{\small{\theauthor}}
+}
+
+%=====================
+% Title Page Customization
+%=====================
+
+\makeatletter
+\def\@maketitle{%
+    \newpage
+    \null
+    \vspace*{-0.8cm}
+    \begin{center}%
+        \let \footnote \thanks
+        {\LARGE \titlefont \@title \par}%
+        \vskip 0.2em
+    \end{center}%
+    \par
+    \vskip 0.8em
+}
+\makeatother
+
+%=====================
+% Sectioning Customization
+%=====================
+
+\usepackage{titlesec}
+\titlespacing*{\section}{0pt}{*3}{*1.5}
+\titlespacing*{\subsection}{0pt}{*2}{*1}
+\titlespacing*{\equation}{0pt}{*1}{*1}
+\titlespacing*{\subsubsection}{0pt}{*1}{*1}
+\titleformat{\section}[hang]
+{\Large\bfseries\fontfamily{cmbr}\selectfont}{\thesection}{0.5em}{}
+
+
+%=====================
+% Paragraph Formatting
+%=====================
+
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{0.15cm plus1mm minus1mm}

@@ -1,0 +1,62 @@
+\documentclass[11pt]{article}
+\usepackage{style} 
+\usepackage{placeins}
+\usepackage{float}
+\usepackage{setspace}
+\usepackage{wrapfig}   % Assicurati che sia nel preamble
+
+
+%================
+% Title and Author Information
+%================
+
+\title{{\titlefont \textbf{Climate vs Human Impact: Understanding Terrestrial Water Storage Variability in the Indus Basin through GRACE Observations}}}
+
+\author{Alice Ferrini, Jérémie Pierre}
+\date{\today}
+
+\usepackage{tcolorbox}
+
+\begin{document}
+\maketitle
+
+\begin{center}
+    \small\href{https://colab.research.google.com/drive/1bcAC7EIbWEmUoxPe29cPU7K1CYk4MdQS?usp=sharing}{\texttt{Google Colab Code}}
+\end{center}
+
+
+
+%================
+% Document Start
+%================
+\setlength{\belowdisplayskip}{3pt} \setlength{\belowdisplayshortskip}{3pt}
+\setlength{\abovedisplayskip}{3pt} \setlength{\abovedisplayshortskip}{0pt}
+
+\section{Research Question and Study Region}
+\input{Space Data 1/Text/Research Question} 
+
+\section{Methodology: Data Set and Analysis Workflow}
+\input{Space Data 1/Text/Methodology}
+
+
+\section{Results}
+\input{Space Data 1/Text/Results} 
+
+\titlespacing*{\section}{0pt}{*2}{*1}
+\section{Interpretation and Discussion}
+\input{Space Data 1/Text/Interpretation and Discussion} 
+
+\setlength{\belowdisplayskip}{0pt} \setlength{\belowdisplayshortskip}{0pt}
+\setlength{\abovedisplayskip}{0pt} \setlength{\abovedisplayshortskip}{0pt}
+
+\small
+\setstretch{1}
+\setlength{\bibsep}{0pt plus 0.3ex}
+\bibliographystyle{unsrtnat}
+\titlespacing*{\section}{0pt}{*1}{*0.5}
+% \bibliographystyle{unsrt}
+{\footnotesize\bibliography{references.bib}}
+
+
+
+\end{document}
