@@ -16,11 +16,10 @@ import matplotlib.pyplot as plt
 from matplotlib.ticker import FixedLocator, FuncFormatter
 from scipy.signal import butter, filtfilt, welch
 
-__version__ = "2.0.0"
+__version__ = "2.1.0"
 
 # ── Output directory ──────────────────────────────────────────────────────────
-FIG_DIR = Path("Report/Img")
-FIG_DIR.mkdir(parents=True, exist_ok=True)
+FIG_DIR = Path("figures")
 
 # ── ISA standard-atmosphere constants (ICAO, troposphere layer) ───────────────
 P0   = 101_325.0   # Pa      — sea-level reference pressure
