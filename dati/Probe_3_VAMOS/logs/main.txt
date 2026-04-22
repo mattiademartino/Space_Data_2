@@ -1,0 +1,44 @@
+=== LOG START ===
+Science data interface active.
+11096 SETUP -> PRELAUNCH
+=== LOG START ===
+Science data interface active.
+IMPACT SPIKE DETECTED
+=== LOG START ===
+Science data interface active.
+IMPACT SPIKE DETECTED
+=== LOG START ===
+Science data interface active.
+IMPACT SPIKE DETECTED
+=== LOG START ===
+Science data interface active.
+IMPACT SPIKE DETECTED
+=== LOG START ===
+Science data interface active.
+IMPACT SPIKE DETECTED
+=== LOG START ===
+Science data interface active.
+IMPACT SPIKE DETECTED
+=== LOG START ===
+Science data interface active.
+IMPACT SPIKE DETECTED
+=== LOG START ===
+Science data interface active.
+IMPACT SPIKE DETECTED
+=== LOG START ===
+Science data interface active.
+13403 SETUP -> PRELAUNCH
+=== LOG START ===
+Science data interface active.
+12587 SETUP -> PRELAUNCH
+=== LOG START ===
+Science data interface active.
+=== LOG START ===
+Science data interface active.
+=== LOG START ===
+Science data interface active.
+12602 SETUP -> PRELAUNCH
+=== LOG START ===
+Science data interface active.
+12596 SETUP -> PRELAUNCH
+1954352 SYSTEM ARMED (high-rate sampling)
