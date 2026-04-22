@@ -278,13 +278,13 @@ if has_wind:
         h_wind_drop = np.interp(tw_drop, t_vamos_drop, h_vamos_drop)
 
 # ============================================================================
-# FIGURE 1: Comprehensive 4-panel atmospheric analysis
+# FIGURE 1: Comprehensive 6-panel atmospheric analysis
 # ============================================================================
 
 print("\nGenerating comprehensive atmospheric comparison figure...")
 
-fig = plt.figure(figsize=(18, 11))
-gs = fig.add_gridspec(2, 3, hspace=0.3, wspace=0.3)
+fig = plt.figure(figsize=(20, 14))
+gs = fig.add_gridspec(3, 3, hspace=0.35, wspace=0.3)
 
 # ----------------------------------------------------------------------------
 # PANEL 1: Pressure Profile Comparison
@@ -444,7 +444,7 @@ ax4.legend(fontsize=9, loc='upper left')
 ax4.grid(alpha=0.2)
 
 # ----------------------------------------------------------------------------
-# PANEL 5: WIND HODOGRAPH
+# PANEL 5: WIND HODOGRAPH (Payerne)
 # ----------------------------------------------------------------------------
 ax5 = fig.add_subplot(gs[1, 1])
 
@@ -542,13 +542,191 @@ ax6.annotate(f'Max shear:\n{max_shear_val:.1f} m/s/km\nat {max_shear_h:.0f} m',
              arrowprops=dict(arrowstyle='->', color='red'),
              fontsize=9, bbox=dict(boxstyle='round', facecolor='white', alpha=0.8))
 
+# ----------------------------------------------------------------------------
+# PANEL 7: VAMOS WIND HODOGRAPH (if data available)
+# ----------------------------------------------------------------------------
+if has_wind and 'ux_drop' in locals() and len(ux_drop) > 10:
+    ax7 = fig.add_subplot(gs[2, 0])
+    
+    # Decimate for clarity
+    step = max(1, len(ux_drop) // 100)
+    u_vamos_plot = ux_drop[::step]
+    v_vamos_plot = uy_drop[::step]
+    h_vamos_plot = h_wind_drop[::step]
+    
+    # Scatter plot colored by altitude
+    sc7 = ax7.scatter(u_vamos_plot, v_vamos_plot, c=h_vamos_plot, cmap='plasma',
+                      s=30, zorder=3, edgecolors='black', linewidths=0.5,
+                      vmin=0, vmax=h_vamos_plot.max())
+    ax7.plot(u_vamos_plot, v_vamos_plot, '-', color='gray', lw=1, alpha=0.3, zorder=2)
+    
+    # Colorbar
+    from mpl_toolkits.axes_grid1 import make_axes_locatable
+    divider7 = make_axes_locatable(ax7)
+    cax7 = divider7.append_axes("right", size="5%", pad=0.1)
+    plt.colorbar(sc7, cax=cax7, label='Altitude [m]')
+    
+    # Reference circles
+    for r in [1, 2, 3, 4, 5]:
+        circle = plt.Circle((0, 0), r, fill=False, color='gray', 
+                           linestyle=':', alpha=0.4)
+        ax7.add_patch(circle)
+    
+    # Mark start/end
+    ax7.scatter(u_vamos_plot[0], v_vamos_plot[0], s=100, marker='o',
+               color='green', edgecolor='darkgreen', linewidth=2,
+               zorder=5, label=f'Start ({h_vamos_plot[0]:.0f} m)')
+    ax7.scatter(u_vamos_plot[-1], v_vamos_plot[-1], s=100, marker='s',
+               color='red', edgecolor='darkred', linewidth=2,
+               zorder=5, label=f'End ({h_vamos_plot[-1]:.0f} m)')
+    
+    ax7.axhline(0, color='k', lw=0.5, alpha=0.3)
+    ax7.axvline(0, color='k', lw=0.5, alpha=0.3)
+    ax7.set_xlabel('U (East) [m/s]', fontsize=11)
+    ax7.set_ylabel('V (North) [m/s]', fontsize=11)
+    ax7.set_title('VAMOS Wind Hodograph\n(scatter shows rotation/oscillation)', 
+                  fontsize=12, fontweight='bold')
+    ax7.legend(fontsize=9, loc='upper left')
+    ax7.set_aspect('equal')
+    ax7.grid(alpha=0.3)
+    
+    lim7 = max(np.abs(u_vamos_plot).max(), np.abs(v_vamos_plot).max()) * 1.2
+    ax7.set_xlim(-lim7, lim7)
+    ax7.set_ylim(-lim7, lim7)
+    
+    # Mean wind stats
+    mean_u_v = np.mean(ux_drop)
+    mean_v_v = np.mean(uy_drop)
+    mean_ws_v = np.sqrt(mean_u_v**2 + mean_v_v**2)
+    ax7.text(0.02, 0.02, f'Mean: {mean_ws_v:.1f} m/s',
+             transform=ax7.transAxes, fontsize=9,
+             bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.8))
+
 plt.suptitle('VAMOS CanSat vs Payerne Radiosonde — Complete Atmospheric Analysis (6 Feb 2026)',
-             fontsize=14, fontweight='bold', y=1.00)
+             fontsize=14, fontweight='bold', y=0.98)
 
 plt.savefig(f"{OUTPUT_DIR}/fig8_complete_atmospheric.png", dpi=130, bbox_inches='tight')
 plt.close()
 
 print(f"  ✓ Saved: {OUTPUT_DIR}/fig8_complete_atmospheric.png")
+
+# ============================================================================
+# FIGURE 2: VAMOS Wind Hodograph (Standalone)
+# ============================================================================
+
+if has_wind and wind_drop_mask.sum() > 10:
+    print("\nGenerating VAMOS-only hodograph...")
+    
+    fig_hodo, ax_hodo = plt.subplots(figsize=(10, 10))
+    
+    # Decimate for clarity
+    step = max(1, len(ux_drop) // 100)
+    u_plot = ux_drop[::step]
+    v_plot = uy_drop[::step]
+    h_plot = h_wind_drop[::step]
+    
+    # Main scatter plot
+    sc = ax_hodo.scatter(u_plot, v_plot, c=h_plot, cmap='viridis', 
+                        s=40, zorder=3, edgecolors='black', linewidths=0.5,
+                        vmin=0, vmax=h_plot.max())
+    
+    # Connect with line
+    ax_hodo.plot(u_plot, v_plot, '-', color='gray', lw=1, alpha=0.3, zorder=2)
+    
+    # Colorbar
+    cbar = plt.colorbar(sc, ax=ax_hodo, label='Altitude [m AGL]', pad=0.02)
+    cbar.ax.tick_params(labelsize=11)
+    
+    # Reference circles
+    max_wind = max(np.abs(u_plot).max(), np.abs(v_plot).max()) * 1.1
+    for speed in [1, 2, 3, 4, 5]:
+        if speed < max_wind:
+            from matplotlib.patches import Circle
+            circle = Circle((0, 0), speed, fill=False, color='gray', 
+                           linestyle=':', alpha=0.4, linewidth=1)
+            ax_hodo.add_patch(circle)
+            label_x = speed * np.cos(np.pi/4)
+            label_y = speed * np.sin(np.pi/4)
+            ax_hodo.text(label_x, label_y, f'{speed} m/s', 
+                   fontsize=9, color='gray', alpha=0.6,
+                   ha='center', va='center',
+                   bbox=dict(boxstyle='round,pad=0.3', facecolor='white', 
+                            alpha=0.7, edgecolor='none'))
+    
+    # Mark start/end
+    ax_hodo.scatter(u_plot[0], v_plot[0], s=200, marker='o', 
+              color='green', edgecolor='darkgreen', linewidth=2.5,
+              zorder=5, label=f'Apogee (h={h_plot[0]:.0f} m)')
+    ax_hodo.scatter(u_plot[-1], v_plot[-1], s=200, marker='s', 
+              color='red', edgecolor='darkred', linewidth=2.5,
+              zorder=5, label=f'Landing (h={h_plot[-1]:.0f} m)')
+    
+    # Axes
+    ax_hodo.axhline(0, color='k', linewidth=0.8, alpha=0.3)
+    ax_hodo.axvline(0, color='k', linewidth=0.8, alpha=0.3)
+    ax_hodo.set_xlabel('U (Eastward Wind) [m/s]', fontsize=13, fontweight='bold')
+    ax_hodo.set_ylabel('V (Northward Wind) [m/s]', fontsize=13, fontweight='bold')
+    ax_hodo.set_title(f'VAMOS Wind Hodograph During Drop\n'
+                 f'(t={t_apogee:.0f}-{t_landing:.0f} s, N={len(u_plot)} decimated samples, fs≈1 Hz)',
+                 fontsize=14, fontweight='bold', pad=15)
+    ax_hodo.legend(fontsize=11, loc='upper left', framealpha=0.9)
+    ax_hodo.set_aspect('equal')
+    ax_hodo.grid(True, alpha=0.3)
+    
+    # Symmetric limits
+    lim = max(np.abs(u_plot).max(), np.abs(v_plot).max()) * 1.2
+    ax_hodo.set_xlim(-lim, lim)
+    ax_hodo.set_ylim(-lim, lim)
+    
+    # Cardinal directions
+    text_offset = lim * 0.93
+    ax_hodo.text(text_offset, 0, 'E', ha='center', va='center', 
+           fontsize=12, fontweight='bold', color='darkblue')
+    ax_hodo.text(-text_offset, 0, 'W', ha='center', va='center', 
+           fontsize=12, fontweight='bold', color='darkblue')
+    ax_hodo.text(0, text_offset, 'N', ha='center', va='center', 
+           fontsize=12, fontweight='bold', color='darkblue')
+    ax_hodo.text(0, -text_offset, 'S', ha='center', va='center', 
+           fontsize=12, fontweight='bold', color='darkblue')
+    
+    # Statistics
+    mean_u = np.mean(ux_drop)
+    mean_v = np.mean(uy_drop)
+    mean_speed = np.sqrt(mean_u**2 + mean_v**2)
+    mean_dir = np.rad2deg(np.arctan2(-mean_u, -mean_v)) % 360
+    
+    stats_text = (f'Mean wind during drop:\n'
+                  f'  Speed: {mean_speed:.2f} m/s\n'
+                  f'  From: {mean_dir:.0f}°\n'
+                  f'  U: {mean_u:+.2f} m/s\n'
+                  f'  V: {mean_v:+.2f} m/s\n\n'
+                  f'Variability (scatter):\n'
+                  f'  σ(U): {np.std(ux_drop):.2f} m/s\n'
+                  f'  σ(V): {np.std(uy_drop):.2f} m/s')
+    
+    ax_hodo.text(0.98, 0.02, stats_text,
+            transform=ax_hodo.transAxes,
+            fontsize=10, family='monospace',
+            verticalalignment='bottom', horizontalalignment='right',
+            bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.9))
+    
+    # Add explanation note
+    note_text = ('Note: Scatter reflects CanSat rotation/oscillation\n'
+                 'under parachute. Compare with Payerne hodograph\n'
+                 'which shows smooth vertical profile from stable balloon.')
+    ax_hodo.text(0.02, 0.98, note_text,
+            transform=ax_hodo.transAxes,
+            fontsize=9, style='italic',
+            verticalalignment='top', horizontalalignment='left',
+            bbox=dict(boxstyle='round', facecolor='lightblue', alpha=0.7))
+    
+    plt.tight_layout()
+    plt.savefig(f"{OUTPUT_DIR}/fig9_vamos_hodograph.png", dpi=130, bbox_inches='tight')
+    plt.close()
+    
+    print(f"  ✓ Saved: {OUTPUT_DIR}/fig9_vamos_hodograph.png")
+else:
+    print("\n  ⚠️  Not enough VAMOS wind data during drop to create hodograph")
 
 # ============================================================================
 # PRINT SUMMARY STATISTICS
