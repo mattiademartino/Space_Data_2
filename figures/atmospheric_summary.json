@@ -1,0 +1,38 @@
+{
+  "data_root": "data",
+  "external_dataset_root": "data/external_dataset",
+  "figures_root": "figures",
+  "figures": {
+    "plot_raw": "figures/plot_raw",
+    "data_quality": "figures/data_quality",
+    "flight_dynamics": "figures/flight_dynamics",
+    "cross_dataset": "figures/cross_dataset",
+    "signal_processing": "figures/signal_processing",
+    "external_dataset": "figures/external_dataset",
+    "scamsat": "figures/scamsat",
+    "exports": "figures/exports"
+  },
+  "datasets": {
+    "grasp_rows": 1715,
+    "vamos_rows": 9349,
+    "wind_rows": 5940,
+    "obama_rows": 28,
+    "uwyo_levels": 3105,
+    "era5_levels": 0,
+    "scamsat_altitude_rows": 3550,
+    "external_compare_interval_agl_m": [
+      0.0,
+      800.0
+    ]
+  },
+  "flags": {
+    "use_era5": false
+  },
+  "mission": {
+    "vamos_apogee_s": 3313.76,
+    "vamos_landing_s": 3513.223,
+    "vamos_peak_altitude_agl_m": 713.4351633493907,
+    "scamsat_drop_start_s": 828.0,
+    "scamsat_drop_end_s": 996.0
+  }
+}

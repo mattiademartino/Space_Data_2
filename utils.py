@@ -9,17 +9,40 @@ so that main.ipynb remains a clean, readable narrative notebook.
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Any
 
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
-from matplotlib.ticker import FixedLocator, FuncFormatter
+from matplotlib.patches import Rectangle
+from matplotlib.ticker import AutoMinorLocator, FixedLocator, FuncFormatter
 from scipy.signal import butter, filtfilt, welch
 
-__version__ = "2.1.0"
+__version__ = "2.3.0"
 
-# ── Output directory ──────────────────────────────────────────────────────────
-FIG_DIR = Path("figures")
+# ── Repository layout ─────────────────────────────────────────────────────────
+ROOT_DIR = Path(".")
+DATA_DIR = ROOT_DIR / "data"
+EXTERNAL_DATA_DIR = DATA_DIR / "external_dataset"
+FIG_DIR = ROOT_DIR / "figures"
+
+GRASP_CSV = DATA_DIR / "Probe_4_GRASP" / "run_0261 - with graphs.csv"
+VAMOS_SCIENCE_CSV = DATA_DIR / "Probe_3_VAMOS" / "logs" / "science.csv"
+VAMOS_WIND_CSV = DATA_DIR / "Probe_3_VAMOS" / "logs" / "wind.csv"
+OBAMA_XLSX = DATA_DIR / "Probe_5_OBAMA" / "OBAMA_data_decoded.xlsx"
+UWYO_CSV = EXTERNAL_DATA_DIR / "uwyo_06610_2026-02-05_12Z.csv"
+SCAMSAT_DIR = DATA_DIR / "Probe_6_ScamSat" / "scamsat_data_upload" / "002"
+
+FIGURE_GROUPS = {
+    "plot_raw": FIG_DIR / "plot_raw",
+    "data_quality": FIG_DIR / "data_quality",
+    "flight_dynamics": FIG_DIR / "flight_dynamics",
+    "cross_dataset": FIG_DIR / "cross_dataset",
+    "signal_processing": FIG_DIR / "signal_processing",
+    "external_dataset": FIG_DIR / "external_dataset",
+    "scamsat": FIG_DIR / "scamsat",
+    "exports": FIG_DIR / "exports",
+}
 
 # ── ISA standard-atmosphere constants (ICAO, troposphere layer) ───────────────
 P0   = 101_325.0   # Pa      — sea-level reference pressure
@@ -43,16 +66,138 @@ _UWYO_CSV_URL = (
     "?datetime=2026-02-05%2012:00:00&id=06610&type=TEXT:CSV&src=BUFR"
 )
 
-# ── Default local data paths ──────────────────────────────────────────────────
-_DATA     = Path("CanSat data utili")
-_UWYO_CSV = Path("dati/uwyo_06610_2026-02-05_12Z.csv")
-
 # ── Skew-T thermodynamic constants ───────────────────────────────────────────
 _P_REF_HPA = 1000.0
 _EPSILON    = 0.622
 _RV         = 461.5
 _CP_D       = 1004.0
 _LV         = 2.5e6
+
+_LEGACY_GRASP = Path("CanSat data utili") / "science_GRASP.csv"
+_LEGACY_VAMOS_SCIENCE = Path("CanSat data utili") / "science_VAMOS.csv"
+_LEGACY_VAMOS_WIND = Path("CanSat data utili") / "wind_VAMOS.csv"
+_LEGACY_OBAMA = Path("CanSat data utili") / "OBAMA_data_decoded.xlsx"
+_LEGACY_UWYO = Path("dati") / "uwyo_06610_2026-02-05_12Z.csv"
+
+
+def ensure_repo_layout() -> None:
+    """Create the canonical output folders used by the notebook and scripts."""
+    FIG_DIR.mkdir(parents=True, exist_ok=True)
+    EXTERNAL_DATA_DIR.mkdir(parents=True, exist_ok=True)
+    for directory in FIGURE_GROUPS.values():
+        directory.mkdir(parents=True, exist_ok=True)
+
+
+def apply_plot_style() -> None:
+    """Apply the shared matplotlib style used across the repository."""
+    plt.rcParams.update({
+        "figure.dpi": 120,
+        "font.size": 10,
+        "axes.grid": True,
+        "grid.alpha": 0.3,
+        "axes.spines.top": False,
+        "axes.spines.right": False,
+    })
+
+
+def style_card_plot(
+    ax: plt.Axes,
+    *,
+    show_legend: bool = False,
+    add_texture: bool = True,
+) -> None:
+    """
+    Style a compact saved plot so it stays legible inside report cards.
+
+    The function removes the axes title, increases grid readability, adds a
+    subtle paper-like texture, and optionally removes the legend to avoid
+    clutter in small exported images.
+    """
+    ax.set_title("")
+    ax.set_facecolor("#fbf7ef")
+    ax.minorticks_on()
+    ax.grid(True, which="major", color="#d9d2c2", linewidth=0.8, alpha=0.55)
+    ax.grid(True, which="minor", color="#eee6d8", linewidth=0.55, alpha=0.45)
+    ax.tick_params(axis="both", labelsize=8, colors="#4f6179")
+
+    for spine in ("left", "bottom"):
+        ax.spines[spine].set_color("#c1b49d")
+        ax.spines[spine].set_linewidth(0.9)
+
+    for axis in (ax.xaxis, ax.yaxis):
+        if axis.get_scale() == "linear":
+            try:
+                axis.set_minor_locator(AutoMinorLocator())
+            except ValueError:
+                pass
+
+    if add_texture:
+        texture = Rectangle(
+            (0, 0), 1, 1,
+            transform=ax.transAxes,
+            facecolor="none",
+            edgecolor=(0.78, 0.71, 0.60, 0.14),
+            hatch="////",
+            linewidth=0.0,
+            zorder=0.1,
+        )
+        texture.set_in_layout(False)
+        ax.add_patch(texture)
+
+    legend = ax.get_legend()
+    if legend is not None and not show_legend:
+        legend.remove()
+
+
+def _resolve_existing_path(
+    default_path: Path,
+    *legacy_paths: Path,
+    override: Path | None = None,
+) -> Path:
+    """Resolve the first available path among canonical, legacy, or override."""
+    candidates: list[Path] = []
+    if override is not None:
+        override = Path(override)
+        if override.is_dir():
+            candidates.append(override / default_path.name)
+            candidates.extend(override / legacy.name for legacy in legacy_paths)
+        else:
+            candidates.append(override)
+    candidates.append(default_path)
+    candidates.extend(legacy_paths)
+
+    for candidate in candidates:
+        if candidate.exists():
+            return candidate
+
+    locations = "\n".join(f"  - {path}" for path in candidates)
+    raise FileNotFoundError(f"Could not find the requested dataset in any of:\n{locations}")
+
+
+def _first_existing_path(*paths: Path) -> Path | None:
+    for path in paths:
+        if path.exists():
+            return path
+    return None
+
+
+def _load_scamsat_signal(
+    filename: str,
+    *,
+    dtype: str,
+    scale: float,
+    time_span_s: float,
+    sync_shift_s: float = 0.0,
+    run_dir: Path | None = None,
+) -> pd.DataFrame:
+    """Load a single ScamSat binary channel and attach its reconstructed time axis."""
+    base_dir = Path(run_dir) if run_dir else SCAMSAT_DIR
+    arr = np.fromfile(base_dir / filename, dtype=dtype).astype(float) * scale
+    t_s = np.linspace(1.0, time_span_s, len(arr)) + sync_shift_s
+    return pd.DataFrame({"t_s": t_s, "value": arr})
+
+
+ensure_repo_layout()
 
 
 # =============================================================================
@@ -291,15 +436,15 @@ def detect_vamos_drop(vamos_df: pd.DataFrame) -> dict:
 
 def load_grasp(data_dir: Path | None = None) -> pd.DataFrame:
     """
-    Load science_GRASP.csv.
+    Load the GRASP atmospheric payload data.
 
     Columns returned: t_ms, temp_C, press_Pa, alt_m, pm25, pm10, t_s, t_rel.
     Note: row 0 is a sensor-init artefact and is NOT removed here — the caller
     is responsible for filtering it (typically `df.iloc[1:]`).
     """
-    root = Path(data_dir) if data_dir else _DATA
+    src = _resolve_existing_path(GRASP_CSV, _LEGACY_GRASP, override=data_dir)
     df = pd.read_csv(
-        root / "science_GRASP.csv",
+        src,
         usecols=[0, 2, 3, 4, 5, 6],
         names=["t_ms", "temp_C", "press_Pa", "alt_m", "pm25", "pm10"],
         header=0, skipfooter=8, engine="python",
@@ -312,15 +457,15 @@ def load_grasp(data_dir: Path | None = None) -> pd.DataFrame:
 
 def load_vamos_science(data_dir: Path | None = None) -> pd.DataFrame:
     """
-    Load science_VAMOS.csv.
+    Load the VAMOS science payload data.
 
     Cleans repeated-header rows (firmware bug), converts timestamps, and adds
     a barometric altitude column (alt_baro, m ASL) via the ISA formula.
 
     Columns returned: t_ms, co2_ppm, temp_C, press_hPa, t_s, t_rel, alt_baro.
     """
-    root = Path(data_dir) if data_dir else _DATA
-    df = pd.read_csv(root / "science_VAMOS.csv")
+    src = _resolve_existing_path(VAMOS_SCIENCE_CSV, _LEGACY_VAMOS_SCIENCE, override=data_dir)
+    df = pd.read_csv(src)
     df.columns = ["t_ms", "co2_ppm", "temp_C", "press_hPa"]
     df = (
         df[df["t_ms"] != "timestamp_ms"]
@@ -336,7 +481,7 @@ def load_vamos_science(data_dir: Path | None = None) -> pd.DataFrame:
 
 def load_vamos_wind(data_dir: Path | None = None) -> pd.DataFrame:
     """
-    Load wind_VAMOS.csv.
+    Load the VAMOS wind payload data.
 
     Handles a mid-file timestamp reset (microcontroller reboot) by discarding
     the segment before the last reset and keeping only the continuous tail.
@@ -346,8 +491,8 @@ def load_vamos_wind(data_dir: Path | None = None) -> pd.DataFrame:
                       x_mps, y_mps, tumbling, t_s, t_rel,
                       wind_acc_vec, wind_spd_vec.
     """
-    root = Path(data_dir) if data_dir else _DATA
-    df = pd.read_csv(root / "wind_VAMOS.csv")
+    src = _resolve_existing_path(VAMOS_WIND_CSV, _LEGACY_VAMOS_WIND, override=data_dir)
+    df = pd.read_csv(src)
     df.columns = ["t_ms", "wind_acc", "wind_dir", "wind_spd",
                   "x_acc", "y_acc", "x_mps", "y_mps", "tumbling"]
     df = (
@@ -372,8 +517,8 @@ def load_vamos_wind(data_dir: Path | None = None) -> pd.DataFrame:
 
 def load_obama(data_dir: Path | None = None) -> pd.DataFrame:
     """Load OBAMA_data_decoded.xlsx (external CanSat reference dataset)."""
-    root = Path(data_dir) if data_dir else _DATA
-    df = pd.read_excel(root / "OBAMA_data_decoded.xlsx", sheet_name="decoded")
+    src = _resolve_existing_path(OBAMA_XLSX, _LEGACY_OBAMA, override=data_dir)
+    df = pd.read_excel(src, sheet_name="decoded")
     return df.apply(pd.to_numeric, errors="coerce")
 
 
@@ -386,8 +531,13 @@ def load_uwyo_sounding(
 
     Falls back to the remote URL if the local CSV does not exist.
     """
-    src: Path | str = csv_path or _UWYO_CSV
-    if not Path(src).exists():
+    local_path = _first_existing_path(
+        *( [Path(csv_path)] if csv_path is not None else [] ),
+        UWYO_CSV,
+        _LEGACY_UWYO,
+    )
+    src: Path | str = local_path if local_path is not None else (url or _UWYO_CSV_URL)
+    if isinstance(src, Path) and not src.exists():
         src = url or _UWYO_CSV_URL
     df = pd.read_csv(src)
     return df.rename(columns={
@@ -398,12 +548,133 @@ def load_uwyo_sounding(
     })
 
 
+def load_era5_profile(
+    nc_path: Path | None = None,
+    *,
+    station_elevation_m: float = 448.0,
+) -> pd.DataFrame | None:
+    """
+    Load an ERA5 pressure-level profile stored in data/external_dataset.
+
+    Returns a tidy DataFrame with altitude AGL, pressure, temperature, RH and
+    wind components. Returns None when no local NetCDF file is available.
+    """
+    import xarray as xr
+
+    if nc_path is not None:
+        src = Path(nc_path)
+    else:
+        src = _first_existing_path(
+            EXTERNAL_DATA_DIR / "era5_dubendorf_20260206.nc",
+            *sorted(EXTERNAL_DATA_DIR.glob("era5*.nc")),
+        )
+    if src is None:
+        return None
+
+    ds = xr.open_dataset(src)
+    if {"latitude", "longitude"}.issubset(ds.dims):
+        ds = ds.mean(dim=["latitude", "longitude"])
+
+    time_coord = "time" if "time" in ds.coords else "valid_time" if "valid_time" in ds.coords else None
+    if time_coord is not None:
+        ds = ds.isel({time_coord: 0})
+        selected_time: Any = ds[time_coord].values
+    else:
+        selected_time = None
+
+    p_hpa = np.asarray(ds["level"].values, dtype=float)
+    t_c = np.asarray(ds["t"].values, dtype=float) - 273.15
+    z_asl = np.asarray(ds["z"].values, dtype=float) / G
+    rh = np.asarray(ds["r"].values, dtype=float) if "r" in ds else np.full_like(t_c, np.nan)
+    u = np.asarray(ds["u"].values, dtype=float) if "u" in ds else np.full_like(t_c, np.nan)
+    v = np.asarray(ds["v"].values, dtype=float) if "v" in ds else np.full_like(t_c, np.nan)
+    wspd = np.hypot(u, v)
+    h_agl = z_asl - station_elevation_m
+
+    df = pd.DataFrame({
+        "pressure_hPa": p_hpa,
+        "temperature_C": t_c,
+        "height_asl_m": z_asl,
+        "height_agl_m": h_agl,
+        "relative_humidity_pct": rh,
+        "u_ms": u,
+        "v_ms": v,
+        "wind_spd_ms": wspd,
+    }).sort_values("height_agl_m").reset_index(drop=True)
+    df.attrs["source_path"] = str(src)
+    if selected_time is not None:
+        df.attrs["selected_time"] = str(selected_time)
+    return df
+
+
+def load_scamsat_bundle(run_dir: Path | None = None) -> dict[str, pd.DataFrame]:
+    """
+    Load the ScamSat binary products as a dict of tidy time series.
+
+    Returned keys: altitude, pressure, temperature, pm25, pm10, acceleration, fft.
+    """
+    base_dir = Path(run_dir) if run_dir else SCAMSAT_DIR
+    bundle = {
+        "altitude": _load_scamsat_signal(
+            "alt.txt", dtype="uint16", scale=0.1, time_span_s=3550.0, run_dir=base_dir
+        ).rename(columns={"value": "altitude_m"}),
+        "pressure": _load_scamsat_signal(
+            "press.txt", dtype="float32", scale=1.0, time_span_s=3550.0, run_dir=base_dir
+        ).rename(columns={"value": "press_Pa"}),
+        "temperature": _load_scamsat_signal(
+            "temp.txt", dtype="float32", scale=1.0, time_span_s=3550.0, run_dir=base_dir
+        ).rename(columns={"value": "temp_C"}),
+        "pm25": _load_scamsat_signal(
+            "pm2_5.txt", dtype="uint16", scale=0.1, time_span_s=3550.0, run_dir=base_dir
+        ).rename(columns={"value": "pm25"}),
+        "pm10": _load_scamsat_signal(
+            "pm10.txt", dtype="uint16", scale=0.1, time_span_s=3550.0, run_dir=base_dir
+        ).rename(columns={"value": "pm10"}),
+        "acceleration": _load_scamsat_signal(
+            "accel.txt", dtype="int16", scale=1 / 1000, time_span_s=3450.0, sync_shift_s=43.0, run_dir=base_dir
+        ).rename(columns={"value": "accel_g"}),
+        "fft": _load_scamsat_signal(
+            "fft.txt", dtype="float32", scale=1.0, time_span_s=3650.0, sync_shift_s=-36.0, run_dir=base_dir
+        ).rename(columns={"value": "fft_amplitude"}),
+    }
+
+    for frame in bundle.values():
+        frame["t_rel"] = frame["t_s"] - frame["t_s"].iat[0]
+
+    bundle["altitude"]["altitude_agl_m"] = bundle["altitude"]["altitude_m"] - 448.0
+    bundle["pressure"]["alt_baro_m"] = isa_alt(bundle["pressure"]["press_Pa"].values)
+    bundle["temperature"]["altitude_agl_m"] = np.interp(
+        bundle["temperature"]["t_s"],
+        bundle["altitude"]["t_s"],
+        bundle["altitude"]["altitude_agl_m"],
+    )
+    bundle["pm25"]["altitude_agl_m"] = np.interp(
+        bundle["pm25"]["t_s"],
+        bundle["altitude"]["t_s"],
+        bundle["altitude"]["altitude_agl_m"],
+    )
+    bundle["pm10"]["altitude_agl_m"] = np.interp(
+        bundle["pm10"]["t_s"],
+        bundle["altitude"]["t_s"],
+        bundle["altitude"]["altitude_agl_m"],
+    )
+    return bundle
+
+
 # =============================================================================
 # Dataset Summary
 # =============================================================================
 
 def print_dataset_summary(
-    grasp, vamos, wind, obama, uwyo, vamos_drop, vamos_conc
+    grasp,
+    vamos,
+    wind,
+    obama,
+    uwyo,
+    vamos_drop,
+    vamos_conc,
+    era5: pd.DataFrame | None = None,
+    scamsat: dict[str, pd.DataFrame] | None = None,
 ) -> None:
     """Print a concise summary table of all loaded datasets."""
     fs_g = 1000.0 / np.median(np.diff(grasp["t_ms"].values))
@@ -416,6 +687,12 @@ def print_dataset_summary(
     print(f"  VAMOS-wind     : {len(wind):6d} rows | {wind['t_rel'].iat[-1]/60:.1f} min | fs ≈ {fs_w:.2f} Hz")
     print(f"  OBAMA (ext.)   : {obama['Time_s'].count():6.0f} rows | time up to {obama['Time_s'].max():.0f} s")
     print(f"  UWYO 06610     : {len(uwyo):6d} levels | sounding 2026-02-05 12:00 UTC (Payerne, CH)")
+    if era5 is not None:
+        label = era5.attrs.get("selected_time", "local NetCDF")
+        print(f"  ERA5 (ext.)    : {len(era5):6d} levels | {label}")
+    if scamsat is not None:
+        print(f"  ScamSat        : {len(scamsat['altitude']):6d} altitude rows | "
+              f"{len(scamsat['temperature']):6d} temperature rows")
     print(f"  VAMOS ∩ GRASP  : {len(vamos_conc):6d} rows concurrent with the GRASP flight")
     print(f"  Drop phase     : apogee at {vamos_drop['t_apogee_s']:.0f} s → landing at"
           f" {vamos_drop['t_landing_s']:.0f} s | "
@@ -429,8 +706,10 @@ def print_dataset_summary(
 # =============================================================================
 
 def save_figure(fig: plt.Figure, filename: str, **kwargs) -> Path:
-    """Save *fig* to Report/Img/<filename> and return the written path."""
+    """Save *fig* under figures/<filename> and return the written path."""
+    ensure_repo_layout()
     path = FIG_DIR / filename
+    path.parent.mkdir(parents=True, exist_ok=True)
     defaults = {"bbox_inches": "tight"}
     defaults.update(kwargs)
     fig.savefig(path, **defaults)
