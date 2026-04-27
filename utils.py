@@ -93,10 +93,25 @@ def apply_plot_style() -> None:
     plt.rcParams.update({
         "figure.dpi": 120,
         "font.size": 10,
+        "font.weight": "semibold",
+        "axes.labelweight": "semibold",
+        "axes.titleweight": "bold",
+        "figure.facecolor": "white",
+        "axes.facecolor": "white",
+        "savefig.facecolor": "white",
+        "savefig.edgecolor": "white",
         "axes.grid": True,
         "grid.alpha": 0.3,
+        "grid.color": "#d7d7d7",
+        "grid.linewidth": 0.8,
+        "axes.linewidth": 1.2,
+        "xtick.major.width": 1.2,
+        "ytick.major.width": 1.2,
+        "xtick.minor.width": 0.9,
+        "ytick.minor.width": 0.9,
         "axes.spines.top": False,
         "axes.spines.right": False,
+        "lines.linewidth": 1.8,
     })
 
 
@@ -114,15 +129,15 @@ def style_card_plot(
     clutter in small exported images.
     """
     ax.set_title("")
-    ax.set_facecolor("#fbf7ef")
+    ax.set_facecolor("white")
     ax.minorticks_on()
-    ax.grid(True, which="major", color="#d9d2c2", linewidth=0.8, alpha=0.55)
-    ax.grid(True, which="minor", color="#eee6d8", linewidth=0.55, alpha=0.45)
-    ax.tick_params(axis="both", labelsize=8, colors="#4f6179")
+    ax.grid(True, which="major", color="#cfcfcf", linewidth=0.95, alpha=0.7)
+    ax.grid(True, which="minor", color="#e7e7e7", linewidth=0.7, alpha=0.6)
+    ax.tick_params(axis="both", labelsize=9, colors="#1f1f1f", width=1.2)
 
     for spine in ("left", "bottom"):
-        ax.spines[spine].set_color("#c1b49d")
-        ax.spines[spine].set_linewidth(0.9)
+        ax.spines[spine].set_color("#222222")
+        ax.spines[spine].set_linewidth(1.2)
 
     for axis in (ax.xaxis, ax.yaxis):
         if axis.get_scale() == "linear":
@@ -136,7 +151,7 @@ def style_card_plot(
             (0, 0), 1, 1,
             transform=ax.transAxes,
             facecolor="none",
-            edgecolor=(0.78, 0.71, 0.60, 0.14),
+            edgecolor=(0.0, 0.0, 0.0, 0.02),
             hatch="////",
             linewidth=0.0,
             zorder=0.1,
@@ -147,6 +162,24 @@ def style_card_plot(
     legend = ax.get_legend()
     if legend is not None and not show_legend:
         legend.remove()
+
+
+def _strip_export_text(fig: plt.Figure) -> None:
+    """Remove labels and annotations from exported figures while keeping ticks."""
+    if getattr(fig, "_suptitle", None) is not None:
+        fig._suptitle.set_text("")
+
+    for ax in fig.axes:
+        ax.set_title("")
+        ax.set_xlabel("")
+        ax.set_ylabel("")
+
+        legend = ax.get_legend()
+        if legend is not None:
+            legend.remove()
+
+        for text in list(ax.texts):
+            text.set_text("")
 
 
 def _resolve_existing_path(
@@ -705,12 +738,17 @@ def print_dataset_summary(
 # Figure helpers
 # =============================================================================
 
-def save_figure(fig: plt.Figure, filename: str, **kwargs) -> Path:
+def save_figure(fig: plt.Figure, filename: str, *, strip_text: bool = True, **kwargs) -> Path:
     """Save *fig* under figures/<filename> and return the written path."""
     ensure_repo_layout()
+    fig.patch.set_facecolor("white")
+    for ax in fig.axes:
+        ax.set_facecolor("white")
+    if strip_text:
+        _strip_export_text(fig)
     path = FIG_DIR / filename
     path.parent.mkdir(parents=True, exist_ok=True)
-    defaults = {"bbox_inches": "tight"}
+    defaults = {"bbox_inches": "tight", "facecolor": "white", "edgecolor": "white"}
     defaults.update(kwargs)
     fig.savefig(path, **defaults)
     return path
