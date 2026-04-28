@@ -1,15 +1,32 @@
 \subsection{Spectral Analysis}
 
+\subsubsection{Purpose and signal preparation}
+The aim of the spectral analysis is to identify disturbances that are not atmospheric in origin, such as parachute oscillations, payload rotations, and high-frequency sensor noise. Since the sensors are mounted on small probes descending under parachutes, part of the measured variability can be produced by the motion of the CanSat itself rather than by changes in temperature, pressure, particulate matter, CO\textsubscript{2}, or wind. The spectral workflow is therefore used as a diagnostic step before the atmospheric interpretation: it allows us to locate suspicious periodic components, remove them when justified, and retain a signal that is more representative of the real vertical structure of the atmosphere.
+
+The workflow is applied to the usable high-quality datasets selected in the data quality assessment, with particular focus on VAMOS and ScamSat. For each variable, the relevant time interval is first isolated, invalid warm-up values are removed, and the samples are placed on a uniform time grid. This is necessary because FFT-based methods assume a constant sampling interval; otherwise, irregular timestamps would be incorrectly interpreted as changes in frequency content.
+
 \subsubsection{Low-pass filtering}
-A low-pass filter is applied to remove high-frequency sensor noise from the raw time series.
+A low-pass filter is first applied to reduce high-frequency sensor noise. The physical atmospheric signal is expected to vary slowly compared with the mechanical motion of the payload: pressure changes mainly because the probe descends, while temperature, CO\textsubscript{2}, and particulate matter evolve over comparatively long time scales. For this reason, a zero-phase Butterworth low-pass filter is used to smooth the raw profiles without shifting features in time or altitude. The cut-off frequency is chosen below the Nyquist frequency of each dataset and high enough to preserve the broad atmospheric trend.
 
-\subsubsection{Trend removal} The dominant trend is removed from the signal in order to obtain a stationary time series suitable for spectral analysis.
+\subsubsection{Trend removal}
+After filtering, the dominant trend is removed when the goal is to study the residual signal in the frequency domain. This step is especially important for pressure and temperature, because the descent produces a large low-frequency component that can hide weaker periodic disturbances. A linear or low-order trend is subtracted from the uniformly sampled signal, and the remaining residual is treated as the approximately stationary time series used for spectral analysis. The residual is not interpreted as the final atmospheric profile; it is used only to detect periodic artefacts and sensor noise.
 
-\subsubsection{Spectral analysis}
- FFT and Welch's method are applied to estimate the power spectral density and identify the energy distribution across frequencies.
+\subsubsection{FFT and Welch spectral estimation}
+The detrended residuals are analysed with two complementary methods. A Hann-windowed FFT is used to inspect the amplitude of individual frequency components, while Welch's power spectral density (PSD) is used to estimate how the signal energy is distributed across frequency in a more stable way. Welch's method divides the signal into shorter overlapping windows, computes the spectrum of each window, and averages the result; this reduces the sensitivity to isolated transients and makes recurring oscillations easier to identify.
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=0.92\linewidth]{Img/fig_vamos_psd.png}
+    \caption{Example of the spectral diagnostic applied to VAMOS pressure and temperature. The raw signals are detrended before the Hann-windowed FFT and Welch PSD are computed. Because VAMOS is sampled at 1 Hz, the Nyquist frequency is 0.5 Hz; only the lower part of the expected pendulum range can be resolved, while faster spin modes would be aliased.}
+    \label{fig:vamos_psd}
+\end{figure}
+
+Figure~\ref{fig:vamos_psd} shows the diagnostic logic used in the report. The expected parachute oscillation range is approximately 0.1--0.5 Hz for suspension lines of a few metres, but the 1 Hz sampling rate of VAMOS limits the resolvable spectrum to frequencies below 0.5 Hz. For this reason, only the lower part of the pendulum band can be evaluated, while faster axial rotations would be aliased and cannot be interpreted directly from these channels.
 
 \subsubsection{Identification and removal of external disturbances}
-Frequency components attributable to external phenomena — such as probe oscillations and rotations — are identified and removed from the signal.
+The final step is to decide whether a frequency component can be attributed to an external disturbance. A component is considered suspicious only if it is narrowband, physically plausible, and persistent across the relevant diagnostics or flight phases. In the time-frequency domain, such a disturbance should appear as a stable horizontal band in the spectrogram, whereas atmospheric variability is expected to be slower, broader, or more transient.
+
+If a clear mechanical frequency is found, the affected band is attenuated before reconstructing the cleaned signal. If no stable peak is present, no notch filter is imposed: in that case the atmospheric profiles are taken from the low-pass-filtered signal, avoiding the removal of physically meaningful variability. This conservative criterion is important because the goal is not simply to make the signal smoother, but to separate atmospheric structure from artefacts introduced by the CanSat descent dynamics.
 
 
 \subsection{Data Analysis and Visualization}
