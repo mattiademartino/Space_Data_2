@@ -18,7 +18,7 @@ from matplotlib.patches import Rectangle
 from matplotlib.ticker import AutoMinorLocator, FixedLocator, FuncFormatter
 from scipy.signal import butter, filtfilt, welch
 
-__version__ = "2.3.0"
+__version__ = "2.4.1"
 
 # ── Repository layout ─────────────────────────────────────────────────────────
 ROOT_DIR = Path(".")
@@ -289,14 +289,27 @@ def resample_uniform(
     -------
     (t_uniform, y_uniform)
     """
+    if fs_new <= 0:
+        raise ValueError("fs_new must be positive")
+
     t = np.asarray(t, dtype=float)
     y = np.asarray(y, dtype=float)
     keep = np.isfinite(t) & np.isfinite(y)
     t, y = t[keep], y[keep]
-    order = np.argsort(t)
-    t, y = t[order], y[order]
-    t_uniq, idx = np.unique(t, return_index=True)
-    y_uniq = y[idx]
+    if len(t) < 2:
+        raise ValueError("At least two finite samples are required for resampling")
+
+    dedup = (
+        pd.DataFrame({"t": t, "y": y})
+        .sort_values("t")
+        .groupby("t", as_index=False)["y"]
+        .mean()
+    )
+    t_uniq = dedup["t"].to_numpy()
+    y_uniq = dedup["y"].to_numpy()
+    if len(t_uniq) < 2 or t_uniq[-1] <= t_uniq[0]:
+        raise ValueError("Time axis must span a positive duration")
+
     t_out = np.arange(t_uniq[0], t_uniq[-1], 1.0 / fs_new)
     y_out = np.interp(t_out, t_uniq, y_uniq)
     return t_out, y_out
@@ -313,6 +326,10 @@ def butter_lowpass(data: np.ndarray, cutoff_hz: float, fs: float, order: int = 4
     fs        : sample rate of *data* (Hz)
     order     : filter order (default 4 → −80 dB/decade roll-off)
     """
+    nyquist = 0.5 * fs
+    if not 0 < cutoff_hz < nyquist:
+        raise ValueError(f"cutoff_hz must be between 0 and Nyquist ({nyquist:g} Hz)")
+
     b, a = butter(order, cutoff_hz / (0.5 * fs), btype="low")
     return filtfilt(b, a, data)
 
@@ -378,6 +395,62 @@ def met_to_uv(
     u   = -spd * np.sin(ang)
     v   = -spd * np.cos(ang)
     return u, v
+
+
+def unwrap_degrees(direction_deg: np.ndarray) -> np.ndarray:
+    """Unwrap a circular angle series in degrees without 0/360 degree jumps."""
+    ang = np.deg2rad(np.asarray(direction_deg, dtype=float))
+    return np.rad2deg(np.unwrap(ang))
+
+
+def apparent_yaw_from_wind_direction(
+    t_s: np.ndarray,
+    direction_deg: np.ndarray,
+    *,
+    smooth_window: int = 5,
+) -> tuple[np.ndarray, np.ndarray]:
+    """
+    Estimate apparent vertical-axis rotation from measured wind direction.
+
+    This is a proxy, not a true attitude solution: changes in real wind
+    direction and rotations of the payload both appear as changes in the
+    sensor-frame wind bearing. A magnetometer or gyro would be needed to
+    separate the two.
+
+    Returns
+    -------
+    direction_unwrapped_deg : wind direction with circular jumps removed
+    yaw_rate_deg_s          : smoothed angular rate d(direction)/dt
+    """
+    t = np.asarray(t_s, dtype=float)
+    direction = np.asarray(direction_deg, dtype=float)
+    unwrapped = np.full_like(direction, np.nan, dtype=float)
+    yaw_rate = np.full_like(direction, np.nan, dtype=float)
+
+    finite_idx = np.where(np.isfinite(t) & np.isfinite(direction))[0]
+    if len(finite_idx) < 2:
+        return unwrapped, yaw_rate
+
+    order = finite_idx[np.argsort(t[finite_idx])]
+    unique_time, first_idx = np.unique(t[order], return_index=True)
+    order = order[first_idx]
+    if len(order) < 2:
+        return unwrapped, yaw_rate
+
+    u = unwrap_degrees(direction[order])
+    if smooth_window and smooth_window > 1:
+        u_rate = (
+            pd.Series(u)
+            .rolling(int(smooth_window), center=True, min_periods=1)
+            .median()
+            .to_numpy()
+        )
+    else:
+        u_rate = u
+
+    unwrapped[order] = u
+    yaw_rate[order] = np.gradient(u_rate, unique_time)
+    return unwrapped, yaw_rate
 
 
 # =============================================================================
@@ -492,8 +565,9 @@ def load_vamos_science(data_dir: Path | None = None) -> pd.DataFrame:
     """
     Load the VAMOS science payload data.
 
-    Cleans repeated-header rows (firmware bug), converts timestamps, and adds
-    a barometric altitude column (alt_baro, m ASL) via the ISA formula.
+    Cleans repeated-header rows (firmware bug), keeps only the continuous
+    segment after the last timestamp reset, converts timestamps, and adds a
+    barometric altitude column (alt_baro, m ASL) via the ISA formula.
 
     Columns returned: t_ms, co2_ppm, temp_C, press_hPa, t_s, t_rel, alt_baro.
     """
@@ -507,6 +581,12 @@ def load_vamos_science(data_dir: Path | None = None) -> pd.DataFrame:
         .reset_index(drop=True)
     )
     df["t_s"]      = df["t_ms"] / 1000.0
+
+    resets = np.where(np.diff(df["t_s"].values) < 0)[0]
+    if len(resets):
+        df = df.iloc[resets[-1] + 1 :].copy().reset_index(drop=True)
+        df["t_s"] = df["t_ms"] / 1000.0
+
     df["t_rel"]    = df["t_s"] - df["t_s"].iat[0]
     df["alt_baro"] = isa_alt(df["press_hPa"].values * 100.0)
     return df
