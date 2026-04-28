@@ -1,0 +1,26 @@
+\subsection{Spectral Analysis}
+
+\subsubsection{Low-pass filtering}
+A low-pass filter is applied to remove high-frequency sensor noise from the raw time series.
+
+\subsubsection{Trend removal} The dominant trend is removed from the signal in order to obtain a stationary time series suitable for spectral analysis.
+
+\subsubsection{Spectral analysis}
+ FFT and Welch's method are applied to estimate the power spectral density and identify the energy distribution across frequencies.
+
+\subsubsection{Identification and removal of external disturbances}
+Frequency components attributable to external phenomena — such as probe oscillations and rotations — are identified and removed from the signal.
+
+
+\subsection{Data Analysis and Visualization}
+\noindent Once the cleaned atmospheric signals are obtained, the processed variables are visualised to extract physically meaningful information about the vertical structure of the atmosphere during the descent. Temperature, pressure, CO\textsubscript{2}, and particulate matter (PM\textsubscript{2.5} and PM\textsubscript{10}) are plotted as vertical profiles, allowing direct inspection of how each quantity varies with altitude and enabling comparison with the expected signatures of the temperature inversion described above. Wind speed and direction are visualised using a compass rose, showing the distribution of wind directions and their associated magnitudes, and a hodograph, a graph in which the east--west and north--south components of the wind vector are plotted against each other at successive altitude levels \citep{lohmann2024}. This representation reveals how wind speed and direction evolve with height, providing insight into the vertical wind shear structure of the boundary layer during the descent. 
+
+
+\subsection{External Datasets Comparison}
+To validate the cleaned atmospheric profiles, \textbf{five} external datasets are used as reference. Since each carries its own limitations, they are used in combination, selecting the most appropriate one depending on the variable under analysis.
+
+\subsubsection{International Standard Atmosphere (ISA)}
+\subsubsection{Payerne Radiosonde}
+\subsubsection{ERA5 Reanalysis}
+\subsubsection{MeteoSwiss Ground Stations: Zürich/Fluntern and Üetliberg}
+\subsubsection{E-PROFILE EUMETNET: Celiometer}
