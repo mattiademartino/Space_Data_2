@@ -1,0 +1,59 @@
+\subsection{Mission Overview and Research Question}
+On 5 February 2026, five CanSat probes were released from a light aircraft over Dübendorf, Switzerland, at approximately 600 m above ground level, as part of an analogue Venus mission. One probe was not launched due to a battery failure, and a second underwent an uncontrolled descent after its parachute failed to open, leaving four usable science datasets. As the probes descend freely under a parachute, their sensors are subject to oscillations and rotations that introduce periodic artefacts into the raw measurements. Spectral analysis is therefore the key tool to separate atmospheric variability from these mechanical disturbances, and forms the basis of our research question:
+
+\begin{tcolorbox}[
+    colback=gray!10,
+    colframe=gray!50,
+    boxrule=0.8pt,
+    arc=4pt,
+    left=8pt, right=8pt, top=6pt, bottom=6pt
+]
+\textit{How do temperature, pressure, particulate matter, CO\textsubscript{2}, and wind vary with altitude and time during the CanSat descent, and how can spectral analysis help distinguish atmospheric structure from sensor noise and oscillatory descent dynamics?}
+\end{tcolorbox}
+
+% Requires in preamble: \usepackage{tcolorbox}
+
+\subsection{Data Quality Assessment}
+A preliminary inspection of the four datasets evaluated their suitability for spectral analysis; the key parameters are summarised in Table~\ref{tab:cansat_summary}.
+
+\textbf{OBAMA} transmitted only aggregated LoRa averages, providing insufficient temporal resolution for spectral analysis and is therefore excluded.
+
+\textbf{GRASP} suffered a false trigger that caused recording to begin before the actual drop, introducing an abrupt discontinuity in the pressure and temperature profiles. GRASP is therefore also excluded.
+
+\textbf{VAMOS} shows a clean, monotonically decreasing pressure profile during descent and physically plausible temperature readings throughout. Its additional CO\textsubscript{2} and wind measurements, together with an onboard tumbling flag, make it the richest dataset and it is selected as a primary dataset.
+
+\textbf{ScamSat} covers the full flight from pre-launch to landing. The descent lasted 168,s over 665,m, with clean pressure and temperature profiles and no systematic artefacts. With additional PM\textsubscript{2.5}, PM\textsubscript{10}, acceleration, and audio channels, it is selected as the second primary dataset.
+
+\begin{table}[ht]
+\centering
+\footnotesize
+\setlength{\tabcolsep}{6pt}
+\caption{Summary of the four CanSat science datasets and their suitability for spectral analysis.}
+\label{tab:cansat_summary}
+\begin{tabular}{lcccc}
+\toprule
+& \textbf{\textcolor{probeRed}{OBAMA}} & \textbf{\textcolor{probeRed}{GRASP}} & \textbf{\textcolor{probeGreen}{VAMOS}} & \textbf{\textcolor{probeGreen}{ScamSat}} \\
+\midrule
+$f_s$              & 0.02 Hz       & 38 Hz         & 1 Hz              & 1 Hz          \\
+$N$ samples        & 23            & 1716          & $\approx$3550     & 9249          \\
+Duration           & 6 min         & 3 min         & 99 min            & 59 min        \\
+Pressure           & 900--946 hPa  & 812--874 hPa  & 868--950 hPa      & 870--940 hPa  \\
+Temperature        & anomalous     & 14.5--24.1\,\textdegree C & 10.9--23.3\,\textdegree C & 10--22\,\textdegree C \\
+Sensors            & Humidity      & PM$_{2.5}$, PM$_{10}$, Alt. & CO$_2$, Wind & PM$_{2.5}$, PM$_{10}$, Audio \\
+\midrule
+Role               & \textcolor{probeRed}{Excluded}   & \textcolor{probeRed}{Excluded}   & \textcolor{probeGreen}{Primary}  & \textcolor{probeGreen}{Primary}  \\
+Reason             & Low $f_s$     & False trigger & Clean drop        & Clean drop    \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+
+\subsection{Methods Overview}
+To address the research question, spectral analysis is applied to the raw sensor time series recorded by VAMOS and ScamSat. By transforming the signals into the frequency domain, it is possible to identify characteristic frequencies associated with probe dynamics and distinguish them from the low-frequency atmospheric variability of interest. Once these mechanical disturbances are localised in frequency, the signal can be filtered to recover a clean atmospheric profile. The resulting data are then compared against external meteorological datasets to validate the physical consistency of the recovered signal and draw conclusions about the vertical structure of the atmosphere during the descent.
+
+
+\subsection{Expected Results}
+
+\noindent  \textbf{Probe dynamics.} In the time-frequency domain, we expect to identify stable, narrowband spectral peaks associated with pendulum oscillations (typically 0.1–0.5,Hz for parachute suspension lines of a few metres) and axial rotation. In the spectrogram, these should appear as continuous horizontal bands, persistent throughout the descent and clearly distinguishable from genuine atmospheric signals, which are expected to be broadband or slowly varying in frequency.
+
+\noindent \textbf{Atmospheric conditions.} On 5 February 2026, Zürich was covered by a dense low-level radiation fog in the morning, which dissolved during the day, a signature of a pronounced temperature inversion and a particularly stable atmosphere \citep{meteoswiss_opendata}. Under such conditions, vertical motion and mixing is strongly suppressed, leading to temperature increasing with altitude within the inversion layer, weak wind speeds, and elevated CO\textsubscript{2} and particulate matter near the surface \citep{lohmann2024}. These expected signatures allow us to approach the data with a more critical eye when evaluating the results of the spectral analysis.
