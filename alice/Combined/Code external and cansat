@@ -1,0 +1,104 @@
+"""
+Temperature vertical profiles — VAMOS & ScamSat
+Standalone script. Run from anywhere; adjusts path to find utils.py automatically.
+"""
+
+import sys
+from pathlib import Path
+
+# ── Locate repo root (where utils.py lives) ───────────────────────────────────
+_HERE = Path(__file__).resolve().parent
+_ROOT = _HERE
+while _ROOT != _ROOT.parent:
+    if (_ROOT / "utils.py").exists():
+        break
+    _ROOT = _ROOT.parent
+sys.path.insert(0, str(_ROOT))
+
+import numpy as np
+import matplotlib.pyplot as plt
+
+from utils import (
+    # ISA atmosphere
+    isa_alt, isa_temp_c, isa_press,
+    # signal processing
+    resample_uniform, butter_lowpass,
+    # flight-phase detection
+    detect_vamos_drop,
+    # data loaders
+    load_vamos_science, load_scamsat_bundle,
+    # plot helpers
+    apply_plot_style, save_figure,
+)
+
+apply_plot_style()
+
+# ── VAMOS ─────────────────────────────────────────────────────────────────────
+vamos = load_vamos_science()
+
+FS_V = 2.0  # Hz — resampling target
+
+t_vu, p_vu = resample_uniform(vamos["t_rel"].values, vamos["press_hPa"].values * 100, FS_V)
+_,   T_vu  = resample_uniform(vamos["t_rel"].values, vamos["temp_C"].values, FS_V)
+
+p_vf = butter_lowpass(p_vu, cutoff_hz=0.3, fs=FS_V, order=4)
+T_vf = butter_lowpass(T_vu, cutoff_hz=0.3, fs=FS_V, order=4)
+
+vamos_drop = detect_vamos_drop(vamos)
+_t0 = vamos_drop["t_apogee_s"]  - vamos["t_s"].iat[0]
+_t1 = vamos_drop["t_landing_s"] - vamos["t_s"].iat[0]
+_vm = (t_vu >= _t0) & (t_vu <= _t1)
+
+T_vm = T_vf[_vm]
+h_vm = isa_alt(p_vf[_vm])   # m ASL
+p_vm = p_vf[_vm] / 100.0    # hPa
+
+# ── ScamSat ───────────────────────────────────────────────────────────────────
+scamsat    = load_scamsat_bundle()
+scam_temp  = scamsat["temperature"]
+scam_press = scamsat["pressure"]
+
+fs_st = max(1, round(len(scam_temp) / scam_temp["t_rel"].iat[-1]))
+
+tt_u, aT_u = resample_uniform(scam_temp["t_rel"].values, scam_temp["temp_C"].values, fs_st)
+aT_f = butter_lowpass(aT_u, cutoff_hz=min(0.3, fs_st * 0.4), fs=fs_st, order=4)
+
+sc_h_baro = np.interp(tt_u, scam_press["t_rel"].values, isa_alt(scam_press["press_Pa"].values))
+sc_p_hPa  = np.interp(tt_u, scam_press["t_rel"].values, scam_press["press_Pa"].values) / 100.0
+
+sc_mask = (sc_h_baro > 400) & (sc_h_baro < 1300)
+
+# ── ISA reference ─────────────────────────────────────────────────────────────
+h_isa = np.linspace(400, 1300, 300)
+T_isa = isa_temp_c(h_isa)
+p_isa = isa_press(h_isa) / 100.0
+
+# ── Plot ──────────────────────────────────────────────────────────────────────
+fig, axes = plt.subplots(1, 2, figsize=(13, 7))
+fig.suptitle("Temperature profiles — VAMOS & ScamSat (LP-filtered, barometric altitude)",
+             fontweight="bold")
+
+ax = axes[0]
+ax.plot(T_vm, h_vm,
+        lw=1.4, color="tab:orange", alpha=0.85, label="VAMOS drop (filtered)")
+ax.plot(aT_f[sc_mask], sc_h_baro[sc_mask],
+        lw=1.0, color="tab:red",    alpha=0.75, label="ScamSat (filtered)")
+ax.plot(T_isa, h_isa,
+        lw=2.0, color="black", ls="--", label="ISA")
+ax.set(xlabel="Temperature (°C)", ylabel="Barometric altitude (m ASL)", title="T vs altitude")
+ax.legend(fontsize=8)
+
+ax = axes[1]
+ax.plot(T_vm, p_vm,
+        lw=1.4, color="tab:orange", alpha=0.85, label="VAMOS drop (filtered)")
+ax.plot(aT_f[sc_mask], sc_p_hPa[sc_mask],
+        lw=1.0, color="tab:red",    alpha=0.75, label="ScamSat (filtered)")
+ax.plot(T_isa, p_isa,
+        lw=2.0, color="black", ls="--", label="ISA")
+ax.invert_yaxis()
+ax.set(xlabel="Temperature (°C)", ylabel="Pressure (hPa)", title="T vs pressure")
+ax.legend(fontsize=8)
+
+plt.tight_layout()
+save_figure(fig, "cross_dataset/fig_T_profiles_vamos_scamsat.png", strip_text=False)
+plt.show()
