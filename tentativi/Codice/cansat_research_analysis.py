@@ -655,3 +655,14 @@ print(f"  6 Feb 2026 atmosphere: {np.mean(pay['T'].values[pay['h_agl'].values<=7
 if scamsat_ok:
     print(f"  SCAMSAT: drop {h_sc[dm_sc].max():.0f} m AGL, {dm_sc.sum()} samples")
 print("="*70)
+
+sounding_wyoming(
+  wmo_id,
+  yy,
+  mm,
+  dd,
+  hh,
+  min = 0,
+  bufr = FALSE,
+  allow_failure = TRUE
+)
