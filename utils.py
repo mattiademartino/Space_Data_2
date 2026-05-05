@@ -54,7 +54,7 @@ RD   = 287.058     # J kg⁻¹ K⁻¹ — specific gas constant (dry air)
 # ── WHO 2021 Air-Quality Guidelines ──────────────────────────────────────────
 WHO_PM25_24H       = 15    # µg m⁻³ — PM₂.₅ 24-h mean limit
 WHO_PM10_24H       = 45    # µg m⁻³ — PM₁₀  24-h mean limit
-CO2_BACKGROUND_PPM = 420   # ppm    — global atmospheric background
+CO2_BACKGROUND_PPM = 431.857   # ppm    — jungraujoch atmospheric background
 
 # ── External sounding reference URLs ─────────────────────────────────────────
 UWYO_SKEWT_URL = (

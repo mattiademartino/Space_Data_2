@@ -1,33 +1,36 @@
 """
 Single figure for VAMOS CO2 and ScamSat particulate matter profiles.
-
+ 
 Outputs:
   alice/mattia/fig_co2_pm_who_comparison.png
 """
-
+ 
 from __future__ import annotations
-
+ 
 import os
 import sys
 from pathlib import Path
-
-
-SCRIPT_DIR = Path(__file__).resolve().parent
+ 
+ 
+try:
+    SCRIPT_DIR = Path(__file__).resolve().parent
+except NameError:
+    SCRIPT_DIR = Path(os.getcwd()) / "alice" / "mattia"
 ROOT_DIR = SCRIPT_DIR.parents[1]
-
+ 
 # Matplotlib tries to write its cache under ~/.config on this machine.
 MPL_CACHE_DIR = Path("/tmp") / "space_data_2_matplotlib"
 MPL_CACHE_DIR.mkdir(parents=True, exist_ok=True)
 os.environ.setdefault("MPLCONFIGDIR", str(MPL_CACHE_DIR))
-
+ 
 sys.path.insert(0, str(ROOT_DIR))
 sys.dont_write_bytecode = True
 os.chdir(ROOT_DIR)
-
+ 
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-
+ 
 from utils import (
     WHO_PM10_24H,
     WHO_PM25_24H,
@@ -35,22 +38,22 @@ from utils import (
     load_scamsat_bundle,
     load_vamos_science,
 )
-
-
+ 
+ 
 # Update this once the real background CO2 reference is available.
 CO2_BACKGROUND_PPM = 420.0
-
+ 
 # ScamSat descent interval used in the existing analysis notebooks/scripts.
 SCAMSAT_DROP_START_S = 828.0
 SCAMSAT_DROP_END_S = 996.0
-
+ 
 # NABEL ground reference – Zürich-Kaserne, 14:30 local time.
 NABEL_PM25 = 17.29   # µg m⁻³
 NABEL_PM10 = 26.07   # µg m⁻³
-
+ 
 OUTPUT_PATH = SCRIPT_DIR / "fig_co2_pm_who_comparison.png"
-
-
+ 
+ 
 def binned_median_profile(
     data: pd.DataFrame,
     value_col: str,
@@ -62,12 +65,12 @@ def binned_median_profile(
     profile = data[[value_col, altitude_col]].replace([np.inf, -np.inf], np.nan).dropna()
     if profile.empty:
         return profile
-
+ 
     z_min = float(profile[altitude_col].min())
     z_max = float(profile[altitude_col].max())
     if np.isclose(z_min, z_max):
         return profile.sort_values(altitude_col)
-
+ 
     bins = np.linspace(z_min, z_max, n_bins + 1)
     profile = profile.assign(_bin=pd.cut(profile[altitude_col], bins, include_lowest=True))
     med = (
@@ -78,20 +81,20 @@ def binned_median_profile(
         .sort_values(altitude_col)
     )
     return med
-
-
+ 
+ 
 def load_vamos_co2_profile() -> pd.DataFrame:
     """Load VAMOS CO2 during descent and attach altitude AGL."""
     vamos = load_vamos_science()
     drop = detect_vamos_drop(vamos)
-
+ 
     co2 = vamos.loc[drop["drop_mask"], ["co2_ppm"]].copy()
     co2["altitude_agl_m"] = np.asarray(drop["h_agl"])[drop["drop_mask"]]
     co2 = co2.replace([np.inf, -np.inf], np.nan).dropna()
     co2 = co2[co2["co2_ppm"] > 0].reset_index(drop=True)
     return co2
-
-
+ 
+ 
 def load_scamsat_pm_profile(key: str, value_col: str) -> pd.DataFrame:
     """Load one ScamSat PM channel during the descent interval."""
     bundle = load_scamsat_bundle()
@@ -101,8 +104,8 @@ def load_scamsat_pm_profile(key: str, value_col: str) -> pd.DataFrame:
     pm = pm.replace([np.inf, -np.inf], np.nan).dropna()
     pm = pm[pm[value_col] >= 0].reset_index(drop=True)
     return pm
-
-
+ 
+ 
 def add_vertical_reference(
     ax: plt.Axes,
     x_value: float,
@@ -126,25 +129,26 @@ def add_vertical_reference(
         fontweight="bold",
         bbox={"facecolor": "white", "edgecolor": "none", "alpha": 0.75, "pad": 1.5},
     )
-
-
+ 
+ 
 def make_plot() -> Path:
     """Create and save the combined CO2/PM figure."""
     co2 = load_vamos_co2_profile()
     pm25 = load_scamsat_pm_profile("pm25", "pm25")
     pm10 = load_scamsat_pm_profile("pm10", "pm10")
-
+ 
     co2_med = binned_median_profile(co2, "co2_ppm", "altitude_agl_m")
     pm25_med = binned_median_profile(pm25, "pm25", "altitude_agl_m")
     pm10_med = binned_median_profile(pm10, "pm10", "altitude_agl_m")
-
+ 
     all_alt = pd.concat(
         [co2["altitude_agl_m"], pm25["altitude_agl_m"], pm10["altitude_agl_m"]],
         ignore_index=True,
     ).dropna()
     z_min = max(0.0, float(all_alt.min()) - 20.0)
     z_max = float(all_alt.max()) + 30.0
-
+    z_range = z_max - z_min
+ 
     plt.rcParams.update({
         "figure.dpi": 140,
         "savefig.dpi": 300,
@@ -155,15 +159,15 @@ def make_plot() -> Path:
         "axes.spines.top": False,
         "axes.spines.right": False,
     })
-
+ 
     fig, (ax_co2, ax_pm) = plt.subplots(
         1,
         2,
-        figsize=(11.8, 6.0),
+        figsize=(10.0, 8.0),
         sharey=True,
         constrained_layout=True,
     )
-
+ 
     ax_co2.scatter(
         co2["co2_ppm"],
         co2["altitude_agl_m"],
@@ -190,8 +194,8 @@ def make_plot() -> Path:
     ax_co2.set_xlabel("CO2 [ppm]")
     ax_co2.set_ylabel("Altitude AGL [m]")
     ax_co2.set_title("VAMOS CO2 profile")
-    ax_co2.legend(loc="lower right", frameon=True, framealpha=0.9)
-
+    ax_co2.legend(loc="lower right", frameon=True, framealpha=0.9, fontsize=8)
+ 
     ax_pm.scatter(
         pm25["pm25"],
         pm25["altitude_agl_m"],
@@ -225,11 +229,12 @@ def make_plot() -> Path:
         linestyle="--",
         label="PM10 binned median",
     )
-
+ 
     pm_max = float(pd.concat([pm25["pm25"], pm10["pm10"]]).max())
     ax_pm.set_xlim(left=0, right=max(pm_max * 1.12, WHO_PM10_24H * 1.25))
     ax_pm.axvspan(WHO_PM25_24H, ax_pm.get_xlim()[1], color="#f97316", alpha=0.045)
-    ax_pm.axvspan(WHO_PM10_24H, ax_pm.get_xlim()[1], color="#dc2626", alpha=0.055)
+    ax_pm.axvspan(WHO_PM10_24H, ax_pm.get_xlim()[1], color="#15803d", alpha=0.055)
+    
     add_vertical_reference(
         ax_pm,
         WHO_PM25_24H,
@@ -241,53 +246,42 @@ def make_plot() -> Path:
         ax_pm,
         WHO_PM10_24H,
         f"WHO PM10 24 h = {WHO_PM10_24H:g}",
-        color="#991b1b",
+        color="#15803d",
         linestyle=":",
     )
-
+ 
     # ── NABEL ground reference – Zürich-Kaserne, 14:30 ───────────────────
+    # Stagger the two markers vertically so they don't overlap.
+    nabel_alt_pm25 = z_min                      # PM2.5 sits at ground
+    nabel_alt_pm10 = z_min + z_range * 0.08     # PM10 sits ~8 % higher
+ 
     ax_pm.scatter(
-        [NABEL_PM25],
-        [z_min],
-        s=120,
-        color="#ea580c",
-        marker="D",
-        zorder=5,
+        [NABEL_PM25], [nabel_alt_pm25],
+        s=130, color="#ea580c", marker="D", zorder=6,
+        edgecolors="white", linewidths=0.8,
         label=f"NABEL PM2.5 ground = {NABEL_PM25} µg m⁻³",
     )
     ax_pm.scatter(
-        [NABEL_PM10],
-        [z_min],
-        s=120,
-        color="#15803d",
-        marker="D",
-        zorder=5,
+        [NABEL_PM10], [nabel_alt_pm10],
+        s=130, color="#15803d", marker="D", zorder=6,
+        edgecolors="white", linewidths=0.8,
         label=f"NABEL PM10 ground = {NABEL_PM10} µg m⁻³",
     )
-    ax_pm.annotate(
-        f"NABEL Zürich-Kaserne 14:30\nPM2.5 = {NABEL_PM25}  |  PM10 = {NABEL_PM10} µg m⁻³",
-        xy=(NABEL_PM25, z_min),
-        xytext=(NABEL_PM25 + 2, z_min + (z_max - z_min) * 0.10),
-        fontsize=8,
-        color="#374151",
-        arrowprops=dict(arrowstyle="->", color="#374151", lw=0.8),
-        bbox=dict(facecolor="white", edgecolor="#d1d5db", alpha=0.88, pad=3),
-    )
-
+ 
     ax_pm.set_xlabel("Particulate matter [microg m$^{-3}$]")
     ax_pm.set_title("ScamSat particulate matter profile")
-    ax_pm.legend(loc="lower right", frameon=True, framealpha=0.9)
-
+    ax_pm.legend(loc="lower right", frameon=True, framealpha=0.9, fontsize=8)
+ 
     fig.suptitle(
         "CO2 and particulate matter during CanSat descent",
         fontsize=13,
         fontweight="bold",
     )
-
+ 
     OUTPUT_PATH.parent.mkdir(parents=True, exist_ok=True)
     fig.savefig(OUTPUT_PATH, bbox_inches="tight", facecolor="white")
     plt.close(fig)
-
+ 
     co2_delta = co2["co2_ppm"].median() - CO2_BACKGROUND_PPM
     print(f"Saved: {OUTPUT_PATH}")
     print(f"VAMOS CO2 median during descent: {co2['co2_ppm'].median():.1f} ppm")
@@ -297,7 +291,7 @@ def make_plot() -> Path:
     print(f"NABEL PM2.5 ground reference (Zürich-Kaserne 14:30): {NABEL_PM25} µg/m3")
     print(f"NABEL PM10 ground reference (Zürich-Kaserne 14:30): {NABEL_PM10} µg/m3")
     return OUTPUT_PATH
-
-
+ 
+ 
 if __name__ == "__main__":
     make_plot()
