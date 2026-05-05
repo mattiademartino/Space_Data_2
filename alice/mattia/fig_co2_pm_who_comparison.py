@@ -44,6 +44,10 @@ CO2_BACKGROUND_PPM = 420.0
 SCAMSAT_DROP_START_S = 828.0
 SCAMSAT_DROP_END_S = 996.0
 
+# NABEL ground reference – Zürich-Kaserne, 14:30 local time.
+NABEL_PM25 = 17.29   # µg m⁻³
+NABEL_PM10 = 26.07   # µg m⁻³
+
 OUTPUT_PATH = SCRIPT_DIR / "fig_co2_pm_who_comparison.png"
 
 
@@ -240,12 +244,40 @@ def make_plot() -> Path:
         color="#991b1b",
         linestyle=":",
     )
+
+    # ── NABEL ground reference – Zürich-Kaserne, 14:30 ───────────────────
+    ax_pm.scatter(
+        [NABEL_PM25],
+        [z_min],
+        s=120,
+        color="#ea580c",
+        marker="D",
+        zorder=5,
+        label=f"NABEL PM2.5 ground = {NABEL_PM25} µg m⁻³",
+    )
+    ax_pm.scatter(
+        [NABEL_PM10],
+        [z_min],
+        s=120,
+        color="#15803d",
+        marker="D",
+        zorder=5,
+        label=f"NABEL PM10 ground = {NABEL_PM10} µg m⁻³",
+    )
+    ax_pm.annotate(
+        f"NABEL Zürich-Kaserne 14:30\nPM2.5 = {NABEL_PM25}  |  PM10 = {NABEL_PM10} µg m⁻³",
+        xy=(NABEL_PM25, z_min),
+        xytext=(NABEL_PM25 + 2, z_min + (z_max - z_min) * 0.10),
+        fontsize=8,
+        color="#374151",
+        arrowprops=dict(arrowstyle="->", color="#374151", lw=0.8),
+        bbox=dict(facecolor="white", edgecolor="#d1d5db", alpha=0.88, pad=3),
+    )
+
     ax_pm.set_xlabel("Particulate matter [microg m$^{-3}$]")
     ax_pm.set_title("ScamSat particulate matter profile")
     ax_pm.legend(loc="lower right", frameon=True, framealpha=0.9)
 
-    
-    
     fig.suptitle(
         "CO2 and particulate matter during CanSat descent",
         fontsize=13,
@@ -262,6 +294,8 @@ def make_plot() -> Path:
     print(f"CO2 median minus background: {co2_delta:+.1f} ppm")
     print(f"ScamSat PM2.5 median during descent: {pm25['pm25'].median():.1f} microg/m3")
     print(f"ScamSat PM10 median during descent: {pm10['pm10'].median():.1f} microg/m3")
+    print(f"NABEL PM2.5 ground reference (Zürich-Kaserne 14:30): {NABEL_PM25} µg/m3")
+    print(f"NABEL PM10 ground reference (Zürich-Kaserne 14:30): {NABEL_PM10} µg/m3")
     return OUTPUT_PATH
 
 
