@@ -1,0 +1,307 @@
+"""
+Skew-T log-P — Multi-source comparison
+5 February 2026 | Payerne, ERA5, MeteoSwiss, ScamSat, VAMOS
+"""
+
+import sys
+import os
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+import matplotlib.ticker as ticker
+import xarray as xr
+
+# ── Add repo root to path so utils.py is importable ──────────────────────────
+try:
+    SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+except NameError:
+    # Running inside a Jupyter notebook — __file__ is not defined
+    SCRIPT_DIR = os.path.abspath(os.path.join(os.getcwd(), "alice", "Comparison"))
+ROOT_DIR = os.path.abspath(os.path.join(SCRIPT_DIR, "..", ".."))
+sys.path.insert(0, ROOT_DIR)
+os.chdir(ROOT_DIR)
+import utils
+
+# ── Paths ─────────────────────────────────────────────────────────────────────
+PAYERNE_CSV = os.path.join(SCRIPT_DIR, "..", "Payerne", "uwyo_06610_2026-02-05_12Z.csv")
+ERA5_NC     = os.path.join(SCRIPT_DIR, "..", "ERA5",    "era5_file.nc")
+SMA_CSV     = os.path.join(SCRIPT_DIR, "..", "Meteoswiss", "ogd-smn_sma_h_recent.csv")
+UEB_CSV     = os.path.join(SCRIPT_DIR, "..", "Meteoswiss", "ogd-smn-tower_ueb_h_recent.csv")
+
+Z_SMA = 556.0   # m asl
+Z_UEB = 896.0   # m asl
+
+# ── Skew-T constants ──────────────────────────────────────────────────────────
+SKEW     = 35.0
+P_REF    = 1000.0
+P_TOP    = 780.0
+P_BOT    = 970.0
+XLIM     = (-2.0, 24.0)
+CP_D     = 1004.0
+LV       = 2.5e6
+EPSILON  = 0.622
+RV       = 461.5
+
+# =============================================================================
+# Skew-T helper functions
+# =============================================================================
+
+def sx(T, P):
+    return np.asarray(T, float) + SKEW * np.log(P_REF / np.asarray(P, float))
+
+def dry_adiabat(theta_K, p_hpa):
+    return theta_K * (np.asarray(p_hpa, float) / P_REF) ** (utils.RD / CP_D) - 273.15
+
+def sat_vapor_hpa(T_c):
+    tc = np.asarray(T_c, float)
+    return 6.112 * np.exp(17.67 * tc / (tc + 243.5))
+
+def moist_adiabat(T0_c, p_hpa):
+    p = np.asarray(p_hpa, float)
+    Tk = np.empty_like(p)
+    Tk[0] = T0_c + 273.15
+    for i in range(1, len(p)):
+        pp = p[i - 1]
+        dp = (p[i] - pp) * 100.0
+        e  = sat_vapor_hpa(Tk[i - 1] - 273.15)
+        w  = EPSILON * e / max(pp - e, 1e-6)
+        num   = utils.G * (1.0 + LV * w / (utils.RD * Tk[i - 1]))
+        den   = CP_D + (LV**2 * w * EPSILON) / (RV * Tk[i - 1]**2)
+        gamma = num / den
+        vT    = Tk[i - 1] * (1.0 + 0.61 * w)
+        Tk[i] = Tk[i - 1] + gamma * utils.RD * vT / (pp * 100.0 * utils.G) * dp
+    return Tk - 273.15
+
+# =============================================================================
+# 1. PAYERNE
+# =============================================================================
+df_pay = pd.read_csv(PAYERNE_CSV)
+df_pay.columns = df_pay.columns.str.strip()
+df_pay = df_pay.rename(columns={"pressure_hPa": "pres", "temperature_C": "temp"})
+df_pay["pres"] = pd.to_numeric(df_pay["pres"], errors="coerce")
+df_pay["temp"] = pd.to_numeric(df_pay["temp"], errors="coerce")
+df_pay = df_pay.dropna(subset=["pres", "temp"])
+df_pay = df_pay[(df_pay["pres"] >= P_TOP) & (df_pay["pres"] <= P_BOT)]
+df_pay = df_pay.sort_values("pres", ascending=False).reset_index(drop=True)
+print(f"Payerne: {len(df_pay)} levels  ({df_pay['pres'].max():.1f}–{df_pay['pres'].min():.1f} hPa)")
+
+# =============================================================================
+# 2. ERA5
+# =============================================================================
+ds = xr.open_dataset(ERA5_NC)
+time_coord  = "valid_time" if "valid_time" in ds.coords else "time"
+target_time = np.datetime64("2026-02-05T15:00:00")
+ds_t        = ds.sel({time_coord: target_time}, method="nearest")
+selected_time = pd.to_datetime(ds_t[time_coord].values).strftime("%H:%M UTC")
+ds_prof   = ds_t.where(
+    (ds_t["pressure_level"] >= P_TOP) & (ds_t["pressure_level"] <= P_BOT), drop=True
+)
+era5_pres = ds_prof["pressure_level"].values.astype(float)
+era5_temp = ds_prof["t"].mean(dim=("latitude", "longitude")).values - 273.15
+order = np.argsort(era5_pres)[::-1]
+era5_pres, era5_temp = era5_pres[order], era5_temp[order]
+print(f"ERA5: {len(era5_pres)} levels  ({era5_pres.max():.0f}–{era5_pres.min():.0f} hPa)  [{selected_time}]")
+
+# =============================================================================
+# 3. METEOSWISS
+# =============================================================================
+sma = pd.read_csv(SMA_CSV, sep=";", parse_dates=["reference_timestamp"], dayfirst=True, low_memory=False)
+ueb = pd.read_csv(UEB_CSV, sep=";", parse_dates=["reference_timestamp"], dayfirst=True, low_memory=False)
+sma.columns = sma.columns.str.strip()
+ueb.columns = ueb.columns.str.strip()
+target_date = pd.Timestamp("2026-02-05").date()
+sma_day = sma[sma["reference_timestamp"].dt.date == target_date].copy()
+ueb_day = ueb[ueb["reference_timestamp"].dt.date == target_date].copy()
+for col in ["tre200h0", "prestah0"]:
+    sma_day[col] = pd.to_numeric(sma_day[col], errors="coerce")
+ueb_day["ta1towh0"] = pd.to_numeric(ueb_day["ta1towh0"], errors="coerce")
+sma_12 = sma_day[sma_day["reference_timestamp"].dt.hour == 12].dropna(subset=["tre200h0", "prestah0"])
+ueb_12 = ueb_day[ueb_day["reference_timestamp"].dt.hour == 12].dropna(subset=["ta1towh0"])
+meteo_pres = np.array([])
+meteo_temp = np.array([])
+if not sma_12.empty and not ueb_12.empty:
+    t_sma = float(sma_12["tre200h0"].iloc[0])
+    p_sma = float(sma_12["prestah0"].iloc[0])
+    t_ueb = float(ueb_12["ta1towh0"].iloc[0])
+    T_mean_K = (t_sma + t_ueb) / 2.0 + 273.15
+    p_ueb    = p_sma * np.exp(-utils.G * (Z_UEB - Z_SMA) / (utils.RD * T_mean_K))
+    meteo_pres = np.array([p_sma, p_ueb])
+    meteo_temp = np.array([t_sma, t_ueb])
+    print(f"MeteoSwiss SMA: T={t_sma:.1f} °C  P={p_sma:.1f} hPa")
+    print(f"MeteoSwiss UEB: T={t_ueb:.1f} °C  P={p_ueb:.1f} hPa (estimated)")
+else:
+    print("MeteoSwiss: no data at 12 UTC")
+
+# =============================================================================
+# 4. SCAMSAT
+# =============================================================================
+scamsat    = utils.load_scamsat_bundle()
+p_sc_raw   = scamsat["pressure"]["press_Pa"].values / 100.0
+t_sc_raw   = scamsat["temperature"]["temp_C"].values
+t_sc_time  = scamsat["temperature"]["t_s"].values
+p_sc_time  = scamsat["pressure"]["t_s"].values
+t_sc_aligned = np.interp(p_sc_time, t_sc_time, t_sc_raw)
+p_smooth  = pd.Series(p_sc_raw).rolling(100, center=True, min_periods=1).median().values
+min_idx   = int(np.argmin(p_smooth))
+p_sc_desc = p_sc_raw[min_idx:]
+t_sc_desc = t_sc_aligned[min_idx:]
+mask_sc   = (np.isfinite(p_sc_desc) & np.isfinite(t_sc_desc)
+             & (p_sc_desc > P_TOP - 5) & (p_sc_desc < P_BOT))
+p_sc_desc = p_sc_desc[mask_sc]
+t_sc_desc = t_sc_desc[mask_sc]
+if len(t_sc_desc) > 20:
+    t_sc_desc = pd.Series(t_sc_desc).rolling(30, center=True, min_periods=1).mean().values
+print(f"ScamSat descent: {len(p_sc_desc)} samples" if len(p_sc_desc) else "ScamSat: no data")
+
+# =============================================================================
+# 5. VAMOS
+# =============================================================================
+vamos      = utils.load_vamos_science()
+vamos_drop = utils.detect_vamos_drop(vamos)
+drop_mask  = vamos_drop["drop_mask"]
+p_va = vamos.loc[drop_mask, "press_hPa"].values
+t_va = vamos.loc[drop_mask, "temp_C"].values
+mask_va = np.isfinite(p_va) & np.isfinite(t_va)
+p_va, t_va = p_va[mask_va], t_va[mask_va]
+if len(t_va) > 20:
+    t_va = pd.Series(t_va).rolling(30, center=True, min_periods=1).mean().values
+print(f"VAMOS descent:  {len(p_va)} samples" if len(p_va) else "VAMOS: no data")
+
+
+# =============================================================================
+# Shared background helpers
+# =============================================================================
+
+def draw_skewt_background(ax, p_grid, p_moist):
+    for theta_K in np.arange(255, 355, 2):
+        T_da = dry_adiabat(theta_K, p_grid)
+        x_da = sx(T_da, p_grid)
+        mask = (x_da >= XLIM[0] - 2) & (x_da <= XLIM[1] + 2)
+        if mask.sum() > 2:
+            ax.plot(x_da[mask], p_grid[mask],
+                    color="#999999", lw=0.7, ls="--", dashes=(5, 3), zorder=1)
+    for T0 in np.arange(-25, 45, 2):
+        T_ma = moist_adiabat(T0, p_moist)
+        x_ma = sx(T_ma, p_moist)
+        mask = (x_ma >= XLIM[0] - 2) & (x_ma <= XLIM[1] + 2)
+        if mask.sum() > 2:
+            ax.plot(x_ma[mask], p_moist[mask],
+                    color="#999999", lw=0.7, ls=":", dashes=(2, 3), zorder=1)
+
+def format_skewt_ax(ax, title, show_ylabel=False):
+    ax.set_yscale("log")
+    ax.set_ylim(P_BOT + 5, P_TOP)
+    ax.set_xlim(*XLIM)
+    std_levels = [p for p in [800, 825, 850, 875, 900, 925, 950] if P_TOP <= p <= P_BOT]
+    ax.yaxis.set_major_locator(ticker.FixedLocator(std_levels))
+    ax.yaxis.set_major_formatter(ticker.FuncFormatter(lambda v, _: f"{int(v):d}"))
+    ax.yaxis.set_minor_formatter(ticker.NullFormatter())
+    ax.set_xlabel("Temperature (°C) — skewed", fontsize=10)
+    if show_ylabel:
+        ax.set_ylabel("Pressure (hPa)", fontsize=10)
+    ax.set_title(title, fontsize=11, fontweight="bold")
+    ax.grid(False)
+    ax.set_facecolor("white")
+
+p_grid  = np.geomspace(P_BOT, P_TOP, 300)
+p_moist = np.geomspace(P_BOT, P_TOP, 200)
+
+
+# =============================================================================
+# FIGURE 1 — Three individual Skew-T subplots (Payerne | ERA5 | MeteoSwiss)
+# =============================================================================
+fig1, axes = plt.subplots(1, 3, figsize=(18, 10), sharey=True)
+fig1.patch.set_facecolor("white")
+
+ax1 = axes[0]
+draw_skewt_background(ax1, p_grid, p_moist)
+ax1.plot(sx(df_pay["temp"], df_pay["pres"]), df_pay["pres"],
+         color="#d62728", lw=2.2, zorder=5, label="Payerne UWYO (12 UTC)")
+format_skewt_ax(ax1, "Payerne UWYO (12 UTC)", show_ylabel=True)
+ax1.legend(fontsize=9, loc="upper left", framealpha=0.92)
+
+ax2 = axes[1]
+draw_skewt_background(ax2, p_grid, p_moist)
+ax2.plot(sx(era5_temp, era5_pres), era5_pres,
+         color="#ff7f0e", lw=2.2, marker="o", markersize=5, zorder=4,
+         label=f"ERA5 ({selected_time})")
+format_skewt_ax(ax2, f"ERA5 ({selected_time})")
+ax2.legend(fontsize=9, loc="upper left", framealpha=0.92)
+
+ax3 = axes[2]
+draw_skewt_background(ax3, p_grid, p_moist)
+if len(meteo_pres):
+    ax3.plot(sx(meteo_temp, meteo_pres), meteo_pres,
+             color="#2ca02c", lw=2.2, marker="s", markersize=8, zorder=5,
+             label="MeteoSwiss SMA+UEB (12 UTC)")
+format_skewt_ax(ax3, "MeteoSwiss SMA+UEB (12 UTC)")
+ax3.legend(fontsize=9, loc="upper left", framealpha=0.92)
+
+fig1.suptitle("Skew-T log-P — 5 February 2026 | Individual sources",
+              fontsize=13, fontweight="bold", y=1.01)
+fig1.tight_layout()
+
+utils.save_figure(fig1, "cross_dataset/skewt_individual.png", strip_text=False)
+plt.show()
+
+
+# =============================================================================
+# FIGURE 2 — Full multi-source Skew-T
+# =============================================================================
+fig2, ax = plt.subplots(figsize=(8, 10))
+ax.set_facecolor("white")
+fig2.patch.set_facecolor("white")
+
+draw_skewt_background(ax, p_grid, p_moist)
+
+ax.plot(sx(df_pay["temp"], df_pay["pres"]), df_pay["pres"],
+        color="#d62728", lw=2.2, zorder=5, label="Payerne UWYO (12 UTC)")
+ax.plot(sx(era5_temp, era5_pres), era5_pres,
+        color="#ff7f0e", lw=2.2, marker="o", markersize=5, zorder=4,
+        label=f"ERA5 ({selected_time})")
+if len(meteo_pres):
+    ax.plot(sx(meteo_temp, meteo_pres), meteo_pres,
+            color="#2ca02c", lw=2.2, marker="s", markersize=8, zorder=5,
+            label="MeteoSwiss SMA+UEB (12 UTC)")
+if len(p_sc_desc):
+    ax.plot(sx(t_sc_desc, p_sc_desc), p_sc_desc,
+            color="#9467bd", lw=1.8, alpha=0.9, zorder=3, label="ScamSat (descent)")
+if len(p_va):
+    ax.plot(sx(t_va, p_va), p_va,
+            color="#1f77b4", lw=1.8, alpha=0.9, zorder=3, label="VAMOS (descent)")
+
+ax.set_yscale("log")
+ax.set_ylim(P_BOT + 5, P_TOP)
+ax.set_xlim(*XLIM)
+std_levels = [p for p in [800, 825, 850, 875, 900, 925, 950] if P_TOP <= p <= P_BOT]
+ax.yaxis.set_major_locator(ticker.FixedLocator(std_levels))
+ax.yaxis.set_major_formatter(ticker.FuncFormatter(lambda v, _: f"{int(v):d}"))
+ax.yaxis.set_minor_formatter(ticker.NullFormatter())
+ax.set_xlabel("Temperature (°C) — skewed", fontsize=12)
+ax.set_ylabel("Pressure (hPa)", fontsize=12)
+ax.set_title("Skew-T log-P — 5 February 2026\nMulti-source comparison",
+             fontsize=13, fontweight="bold")
+
+from matplotlib.lines import Line2D
+legend_handles = [
+    Line2D([0], [0], color="#d62728", lw=2.2, label="Payerne UWYO (12 UTC)"),
+    Line2D([0], [0], color="#ff7f0e", lw=2.2, marker="o", markersize=5,
+           label=f"ERA5 ({selected_time})"),
+    Line2D([0], [0], color="#2ca02c", lw=2.2, marker="s", markersize=7,
+           label="MeteoSwiss SMA+UEB (12 UTC)"),
+    Line2D([0], [0], color="#9467bd", lw=1.8, label="ScamSat (descent)"),
+    Line2D([0], [0], color="#1f77b4", lw=1.8, label="VAMOS (descent)"),
+    Line2D([0], [0], color="#bbbbbb", lw=1.2, ls="--",
+           label=r"Dry adiabat $\Gamma_d$ ≈ 9.8 °C/km"),
+    Line2D([0], [0], color="#bbbbbb", lw=1.2, ls=":",
+           label=r"Moist adiabat $\Gamma_s$ ≈ 6.5 °C/km"),
+]
+ax.legend(handles=legend_handles, fontsize=8, loc="upper left",
+          framealpha=0.92, edgecolor="#cccccc",
+          labelcolor=["#d62728","#ff7f0e","#2ca02c","#9467bd","#1f77b4",
+                      "#aaaaaa","#aaaaaa"])
+ax.grid(False)
+fig2.tight_layout()
+
+utils.save_figure(fig2, "cross_dataset/skewt_comparison.png", strip_text=False)
+plt.show()
